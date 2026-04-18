@@ -47,3 +47,9 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+# Replit (extra cleanup)
+.replit
+.replitignore
+.replit-artifact/
+replit.nix
+.env
