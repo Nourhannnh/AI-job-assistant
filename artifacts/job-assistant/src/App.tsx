@@ -81,7 +81,7 @@ function Layout({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-50 flex h-16 items-center gap-4 border-b bg-background px-6">
         <Link href="/" className="flex items-center gap-2 font-bold text-lg tracking-tight">
           <div className="size-6 rounded bg-primary text-primary-foreground flex items-center justify-center text-xs">J</div>
-          JobAssist
+          AI Job Assistant
         </Link>
         <Show when="signed-in">
           <nav className="flex items-center gap-6 text-sm font-medium ml-6">

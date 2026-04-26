@@ -1,6 +1,6 @@
-# JobAssist — AI-powered CV & Job Match Tool
+# AI Job Assistant — AI-powered CV & Job Match Tool
 
-JobAssist is a full-stack web application that helps users evaluate how well their CV matches a job description using LLM-based analysis. It provides a structured breakdown of skill gaps, CV improvement suggestions, and generates tailored cover letters and interview questions.
+AI Job Assistant is a full-stack web application that helps users evaluate how well their CV matches a job description using LLM-based analysis. It provides a structured breakdown of skill gaps, CV improvement suggestions, and generates tailored cover letters and interview questions.
 
 ---
 
