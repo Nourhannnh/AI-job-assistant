@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -9,23 +9,29 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 
 const analyzeSchema = z.object({
   jobTitle: z.string().min(1, "Job title is required"),
   companyName: z.string().optional(),
   jobDescription: z.string().min(50, "Please provide a detailed job description (at least 50 characters)"),
-  cvText: z.string().min(100, "Please paste your full CV text (at least 100 characters)"),
+  cvText: z.string().min(100, "Please provide your full CV (at least 100 characters)"),
 });
 
 type AnalyzeForm = z.infer<typeof analyzeSchema>;
+
+type CvInputMode = "paste" | "upload";
 
 export default function Analyze() {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [cvMode, setCvMode] = useState<CvInputMode>("paste");
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [isParsing, setIsParsing] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const createAnalysis = useCreateAnalysis();
 
@@ -38,6 +44,59 @@ export default function Analyze() {
       cvText: "",
     },
   });
+
+  async function parsePdf(file: File) {
+    setIsParsing(true);
+    setUploadedFile(file);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/cv/parse", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error ?? "Failed to parse PDF");
+      }
+
+      form.setValue("cvText", data.text, { shouldValidate: true });
+      toast({ title: "CV uploaded", description: "Text extracted from your PDF successfully." });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to parse PDF";
+      toast({ title: "Upload failed", description: msg, variant: "destructive" });
+      setUploadedFile(null);
+    } finally {
+      setIsParsing(false);
+    }
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) parsePdf(file);
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file?.type === "application/pdf") {
+      parsePdf(file);
+    } else {
+      toast({ title: "Invalid file", description: "Please drop a PDF file.", variant: "destructive" });
+    }
+  }
+
+  function switchMode(mode: CvInputMode) {
+    setCvMode(mode);
+    form.setValue("cvText", "");
+    setUploadedFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
 
   async function onSubmit(values: AnalyzeForm) {
     setIsAnalyzing(true);
@@ -52,7 +111,6 @@ export default function Analyze() {
       },
       {
         onSuccess: (analysis) => {
-          // Invalidate cached queries so dashboard and history update
           queryClient.invalidateQueries({ queryKey: getListAnalysesQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetRecentAnalysesQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetDashboardStatsQueryKey() });
@@ -81,7 +139,7 @@ export default function Analyze() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold tracking-tight">New Analysis</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Paste your CV and the job description to get an AI-powered match analysis.
+          Paste or upload your CV and the job description to get an AI-powered match analysis.
         </p>
       </div>
 
@@ -135,30 +193,115 @@ export default function Analyze() {
             )}
           />
 
-          <FormField
-            control={form.control}
-            name="cvText"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Your CV *</FormLabel>
-                <FormControl>
-                  <Textarea
-                    placeholder="Paste your full CV text here (copy-paste from your CV document)..."
-                    className="min-h-[300px] font-mono text-sm resize-y"
-                    {...field}
-                    data-testid="textarea-cv-text"
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Your CV *</span>
+              <div className="flex rounded-md border text-sm overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => switchMode("paste")}
+                  className={`px-3 py-1 transition-colors ${cvMode === "paste" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:text-foreground"}`}
+                >
+                  Paste text
+                </button>
+                <button
+                  type="button"
+                  onClick={() => switchMode("upload")}
+                  className={`px-3 py-1 border-l transition-colors ${cvMode === "upload" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:text-foreground"}`}
+                >
+                  Upload PDF
+                </button>
+              </div>
+            </div>
+
+            {cvMode === "paste" ? (
+              <FormField
+                control={form.control}
+                name="cvText"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Paste your full CV text here (copy-paste from your CV document)..."
+                        className="min-h-[300px] font-mono text-sm resize-y"
+                        {...field}
+                        data-testid="textarea-cv-text"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            ) : (
+              <FormField
+                control={form.control}
+                name="cvText"
+                render={() => (
+                  <FormItem>
+                    <FormControl>
+                      <div
+                        onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+                        onDragLeave={() => setIsDragOver(false)}
+                        onDrop={handleDrop}
+                        onClick={() => !uploadedFile && fileInputRef.current?.click()}
+                        className={`min-h-[200px] rounded-md border-2 border-dashed flex flex-col items-center justify-center gap-3 transition-colors cursor-pointer
+                          ${isDragOver ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/30"}
+                          ${uploadedFile ? "cursor-default" : ""}`}
+                      >
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept=".pdf,application/pdf"
+                          className="hidden"
+                          onChange={handleFileChange}
+                        />
+                        {isParsing ? (
+                          <>
+                            <div className="size-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                            <p className="text-sm text-muted-foreground">Extracting text from PDF...</p>
+                          </>
+                        ) : uploadedFile ? (
+                          <>
+                            <div className="size-10 rounded-full bg-green-100 flex items-center justify-center">
+                              <svg className="size-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                            </div>
+                            <div className="text-center">
+                              <p className="text-sm font-medium">{uploadedFile.name}</p>
+                              <p className="text-xs text-muted-foreground mt-0.5">Text extracted successfully</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); switchMode("upload"); }}
+                              className="text-xs text-muted-foreground underline hover:text-foreground"
+                            >
+                              Upload a different file
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <div className="size-10 rounded-full bg-muted flex items-center justify-center">
+                              <svg className="size-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                            </div>
+                            <div className="text-center">
+                              <p className="text-sm font-medium">Drop your CV here or click to browse</p>
+                              <p className="text-xs text-muted-foreground mt-0.5">PDF files only, up to 10MB</p>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             )}
-          />
+          </div>
 
           <div className="pt-2">
             <Button
               type="submit"
               size="lg"
-              disabled={isAnalyzing || createAnalysis.isPending}
+              disabled={isAnalyzing || createAnalysis.isPending || isParsing}
               className="w-full md:w-auto"
               data-testid="button-analyze"
             >

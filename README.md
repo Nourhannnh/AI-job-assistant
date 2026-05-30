@@ -107,7 +107,7 @@ Backend runs on port 8080, frontend on port 5173.
 
 ## A few things worth noting
 
-Cover letters and interview questions are generated lazily — only when you ask for them — and then cached in the database so you don't burn API calls on repeat requests.
+Cover letters and interview questions are generated lazily, only when you ask for them, and then cached in the database so you don't burn API calls on repeat requests.
 
 The AI module (`lib/ai.ts`) handles all three OpenAI calls independently. Each one uses a structured prompt that asks the model to return JSON, then strips any markdown fencing before parsing. Match scores are clamped to 0-100 on the server side.
 
