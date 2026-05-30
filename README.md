@@ -8,7 +8,7 @@ Built with TypeScript, Node.js, Express, PostgreSQL, and React. Powered by OpenA
 
 ## What it does
 
-You submit a CV — either by pasting text directly or uploading a PDF — and a job description. The backend runs them through GPT and comes back with:
+You submit a CV, by either pasting text directly or uploading a PDF, and a job description. The backend runs them through GPT and comes back with:
 
 - A **match score** from 0 to 100
 - A list of **missing skills or qualifications** the job asks for that your CV doesn't cover
@@ -110,7 +110,7 @@ Backend runs on port 8080, frontend on port 5173.
 
 ## A few things worth noting
 
-Cover letters and interview questions are generated lazily — only when you ask for them — and then cached in the database so you don't burn API calls on repeat requests.
+Cover letters and interview questions are generated lazily, only when you ask for them, and then cached in the database so you don't burn API calls on repeat requests.
 
 PDF CV uploads go through `POST /cv/parse`. The file is accepted as multipart form data, parsed in memory using pdf-parse (max 10MB, PDFs only), and the extracted text is returned to the frontend to pre-fill the CV field. If the PDF is scanned or password-protected and can't be parsed, the endpoint returns a 422 with a message telling the user to paste manually instead.
 
